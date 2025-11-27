@@ -48,7 +48,7 @@ class Task:
         return asd
   
 
-class ADGraph:
+class ExecutionGraph:
     def __init__(self) -> None:
         self.graph = nx.DiGraph()
         self.taskList = dict()
@@ -68,7 +68,7 @@ class ADGraph:
 
         
 
-class OriginalADG(ADGraph):
+class OriginalADG(ExecutionGraph):
     def __init__(self, taskList, startPositions):
         super().__init__()
         taskList = np.array(taskList)
@@ -115,7 +115,7 @@ class OriginalADG(ADGraph):
                                 break
                             
 
-class SAGE(ADGraph):
+class SAGE(ExecutionGraph):
     def __init__(self, taskList, startPositions):
         super().__init__()
 
@@ -188,7 +188,7 @@ class SAGE(ADGraph):
         
             
 
-class FORTED(ADGraph):
+class FORTED(ExecutionGraph):
     def __init__(self, taskList, startPositions):
         super().__init__()
 
@@ -229,15 +229,21 @@ class FORTED(ADGraph):
             if(tuple(t.goalPos) in positions and t.action!=0):
                 self.graph.add_edge(positions[tuple(t.goalPos)], t.taskID)
 
-class MAGE(ADGraph):
-    def __init__(self, taskList, startPositions, baseADG=FORTED):
+class MAGE(ExecutionGraph):
+    def __init__(self, taskList, startPositions, baseADG=FORTED, filename="temp.dat"):
         super().__init__()
         self.baseADG = baseADG(taskList, startPositions)
         self.graph = self.baseADG.graph
         self.taskList = self.baseADG.taskList
         self.robotList = self.baseADG.robotList
         
-        dp = np.zeros((len(self.taskList)+2, len(self.taskList)+2), dtype=bool)
+        if((len(self.taskList)+2)>50000):
+            assert filename is not None
+            dp = np.memmap(filename, dtype='bool', mode='w+', shape=(len(self.taskList)+2, len(self.taskList)+2))
+        else:
+            dp = np.zeros((len(self.taskList)+2, len(self.taskList)+2), dtype=bool)
+            
+        
         for t in self.robotList:
             self.reduceGraph(t.taskID, dp)
 
@@ -299,10 +305,10 @@ def getWorldSize(NUM_AGENTS = 40, minFreeCellPercentToMaintain = 30):
     # cellsNeeded = max(8, cellsNeeded)
     return cellsNeeded, 1-NUM_AGENTS/(cellsNeeded*cellsNeeded)
 
-def testTime(method, ACTIONS, STARTS, subMethod = FORTED):
+def testTime(method, ACTIONS, STARTS, subMethod = FORTED, filename="temp.dat"):
     start = time.time()
     if(method == MAGE):
-        exGraph = method(ACTIONS, STARTS, baseADG=subMethod)
+        exGraph = method(ACTIONS, STARTS, baseADG=subMethod, filename=filename)
     else:
         exGraph = method(ACTIONS, STARTS,)
     end = time.time()

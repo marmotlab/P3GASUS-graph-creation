@@ -34,7 +34,7 @@ class ContinuousTask:
 
         return asd
     
-class ContinuousADGraph:
+class ContinuousExecutionGraph:
     
     def __init__(self, positions = None) -> None:
         assert positions is not None
@@ -71,7 +71,7 @@ class ContinuousADGraph:
             for i in self.taskList:
                 f.write(self.taskList[i].__repr__())
 
-class OriginalADG(ContinuousADGraph):
+class OriginalADG(ContinuousExecutionGraph):
     
     def __init__(self, allPositions) -> None:
         super().__init__(allPositions)
@@ -113,7 +113,7 @@ class OriginalADG(ContinuousADGraph):
                                 self.graph.add_edge(task.taskID, task_.taskID)
                                 break
 
-class SAGE(ContinuousADGraph):
+class SAGE(ContinuousExecutionGraph):
     def __init__(self, allPositions=None) -> None:
         super().__init__(allPositions)
         numRobots = allPositions.shape[0]
@@ -167,7 +167,7 @@ class SAGE(ContinuousADGraph):
 
 
 class MAGE(SAGE):
-    def __init__(self, allPositions=None, filename=None) -> None:
+    def __init__(self, allPositions=None, filename="temp.dat") -> None:
         super().__init__(allPositions)
         
         if((len(self.taskList)+2)>50000):
@@ -200,7 +200,7 @@ class MAGE(SAGE):
 
         return dp[root]
 
-class Multi_KDTree_SAGE(ContinuousADGraph):
+class Multi_KDTree_SAGE(ContinuousExecutionGraph):
     def __init__(self, allPositions=None) -> None:
         super().__init__(allPositions)
 
@@ -259,7 +259,7 @@ class Multi_KDTree_SAGE(ContinuousADGraph):
 
 #Helper Functions
 
-def testTime(method, allPos, fname):
+def testTime(method, allPos, fname="temp.dat"):
     start = time.time()
     if(method is MAGE):
         exGraph = method(allPos, fname)
