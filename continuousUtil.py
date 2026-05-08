@@ -259,7 +259,7 @@ class Multi_KDTree_SAGE(ContinuousExecutionGraph):
 
 #Helper Functions
 
-def testTime(method, allPos, fname="temp.dat"):
+def testTime(method, allPos, allConf, fname="temp.dat"):
     start = time.time()
     if(method is MAGE):
         exGraph = method(allPos, fname)
