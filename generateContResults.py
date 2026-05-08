@@ -7,6 +7,21 @@ import glob
 
 folder_path = 'Results/ContRawData'
 
+def loadRadii(NUM_AGENTS, FPS):
+    radii_path = f"Continuous Scenario Paths/{NUM_AGENTS}Agents_{FPS}fps_conf.json"
+    
+    if os.path.exists(radii_path):
+        with open(radii_path, 'r') as f:
+            try:
+                data = json.load(f)
+            except:
+                print(f"Error loading radii JSON: {radii_path}")
+                return None
+        return jsonToRadii(data, NUM_AGENTS)
+    
+    print(f"Warning: no radii config found for {NUM_AGENTS} agents at {FPS} fps")
+    return None
+
 # Get a list of all .dat files in the folder
 dat_files = glob.glob(os.path.join(folder_path, '*.dat'))
 
@@ -39,9 +54,10 @@ def getOneEpData(NUM_AGENTS, FPS, index):
             print(index)
             return None
     allPos=jsonToNpy(data,NUM_AGENTS)
+    allRadii = loadRadii(NUM_AGENTS, FPS)
 
     for idx, val in enumerate(listOfMethods):
-        commsLen, timeTaken = testTime(val, allPos, filepath+"_"+str(index)+".dat")
+        commsLen, timeTaken = testTime(val, allPos, allRadii, filepath+"_"+str(index)+".dat")
         timeStore[idx] = timeTaken    
         commsStore[idx] = commsLen
         

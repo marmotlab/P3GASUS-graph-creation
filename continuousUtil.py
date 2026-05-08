@@ -36,19 +36,25 @@ class ContinuousTask:
     
 class ContinuousExecutionGraph:
     
-    def __init__(self, positions = None) -> None:
+    def __init__(self, positions = None, radii=None) -> None:
         assert positions is not None
 
         self.graph = nx.DiGraph()
         self.taskList = dict()
         self.robotList = []
 
+        self.radii = None if radii is None else np.array(radii, dtype=float)
+        self.maxRadius = None if self.radii is None else float(np.max(self.radii))
+
+        # calculate threshold the old way if radius is None
         self.THRESH = 1e8
-        
-        for i in range(positions.shape[1]):
-            for r in range(positions.shape[0]):
-                for r_ in range(r+1, positions.shape[0]):
-                    self.THRESH = min(self.THRESH, self.getDistance(positions[r,i], positions[r_,i]))
+        if self.radii is None:
+            for i in range(positions.shape[1]):
+                for r in range(positions.shape[0]):
+                    for r_ in range(r+1, positions.shape[0]):
+                        self.THRESH = min(self.THRESH, self.getDistance(positions[r,i], positions[r_,i]))
+        else:
+            self.THRESH = None
     
     def checkCollision(self, a, b):
         return self.getDistance(a,b)<self.THRESH
@@ -114,8 +120,8 @@ class OriginalADG(ContinuousExecutionGraph):
                                 break
 
 class SAGE(ContinuousExecutionGraph):
-    def __init__(self, allPositions=None) -> None:
-        super().__init__(allPositions)
+    def __init__(self, allPositions=None, radii=None) -> None:
+        super().__init__(allPositions, radii=radii)
         numRobots = allPositions.shape[0]
         tId = 1
 
@@ -153,7 +159,12 @@ class SAGE(ContinuousExecutionGraph):
             if(tID+1) in self.taskList and self.taskList[tID+1].time!=0:
                 taskQueue.append(tID+1)
             
-            possibeDependencies = tree.query_radius([t.startPos], r=self.THRESH)[0]
+            if self.radii is not None:
+                threshold = float(self.radii[t.robotID] + self.maxRadius)
+            else:
+                threshold = self.THRESH
+
+            possibeDependencies = tree.query_radius([t.startPos], r=threshold)[0]
             possibeDependencies = sorted(possibeDependencies)
             dependentRobots = [t.robotID]
 
@@ -161,7 +172,7 @@ class SAGE(ContinuousExecutionGraph):
                 tID_ = tID__+1
                 t_ = self.taskList[tID_]
                 if(t_.robotID not in dependentRobots and t.time<=t_.time):
-                    if(self.checkCollision(t.startPos, t_.goalPos)):
+                    if(self.checkCollision(t.startPos, t_.goalPos) if self.radii is None else self.getDistance(t.startPos, t_.goalPos) <= threshold):
                         self.graph.add_edge(tID, tID_)
                         dependentRobots.append(t_.robotID)
 
@@ -201,8 +212,8 @@ class MAGE(SAGE):
         return dp[root]
 
 class Multi_KDTree_SAGE(ContinuousExecutionGraph):
-    def __init__(self, allPositions=None) -> None:
-        super().__init__(allPositions)
+    def __init__(self, allPositions=None, radii=None) -> None:
+        super().__init__(allPositions, radii=radii)
 
         numRobots = allPositions.shape[0]
         tId = 1
@@ -249,20 +260,28 @@ class Multi_KDTree_SAGE(ContinuousExecutionGraph):
                 if rID_==t.robotID:
                     continue
                 
-                possibeDependencies = trees[rID_].query_radius([t.startPos], r=self.THRESH)[0]
+                if self.radii is not None:
+                    threshold = float(self.radii[t.robotID] + self.radii[rID_])
+                else:
+                    threshold = self.THRESH
+
+                possibeDependencies = trees[rID_].query_radius([t.startPos], r=threshold)[0]
                 possibeDependencies = sorted(possibeDependencies)
                 for i in possibeDependencies:
                     if i>=t.time:
                         tID_ = self.robotList[rID_].taskID+i
-                        self.graph.add_edge(tID, tID_)
-                        break
+                        if self.radii is None or self.getDistance(t.startPos, self.taskList[tID_].goalPos) <= threshold:
+                            self.graph.add_edge(tID, tID_)
+                            break
 
 #Helper Functions
 
-def testTime(method, allPos, allConf, fname="temp.dat"):
+def testTime(method, allPos, allConf=None, fname="temp.dat"):
     start = time.time()
     if(method is MAGE):
         exGraph = method(allPos, fname)
+    elif(method is SAGE or method is Multi_KDTree_SAGE):
+        exGraph = method(allPos, radii=allConf)
     else:
         exGraph = method(allPos)
     end = time.time()
@@ -282,3 +301,13 @@ def jsonToNpy(data, NUM_AGENTS):
         if(idx[1]<len(temp[idx[0]])):
             positions[idx] = temp[idx[0]][idx[1]][idx[2]]
     return positions
+
+def jsonToRadii(data, NUM_AGENTS):
+    radii = []
+    for i in range(NUM_AGENTS):
+        key = 'agent'+str(i)
+        value = data[key]
+        if isinstance(value, list):
+            value = value[0]
+        radii.append(float(value))
+    return np.array(radii)
