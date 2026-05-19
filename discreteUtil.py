@@ -420,6 +420,8 @@ def oneTestCase(NUM_AGENTS=40, minFreeCellPercentToMaintain=30):
     if(paths is None):
         raise Exception("No Solution")
 
+    if len(paths) < NUM_AGENTS:
+        raise Exception(f"Incomplete Solution: expected {NUM_AGENTS} paths, got {len(paths)}")
 
     ACTIONS = []
 

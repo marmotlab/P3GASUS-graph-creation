@@ -69,10 +69,14 @@ def getOneEpData(NUM_AGENTS, minFreeCellPercentToMaintain, implementationMode, m
     timeStore = np.zeros(len(selectedMethodSpecs))
     commsStore = np.zeros(len(selectedMethodSpecs))
 
-    ACTIONS, STARTS, freeCellsPercent = oneTestCase(
-        NUM_AGENTS,
-        minFreeCellPercentToMaintain=minFreeCellPercentToMaintain,
-    )
+    try:
+        ACTIONS, STARTS, freeCellsPercent = oneTestCase(
+            NUM_AGENTS,
+            minFreeCellPercentToMaintain=minFreeCellPercentToMaintain,
+        )
+    except Exception as exc:
+        print(f"Skipping failed testcase for {NUM_AGENTS} agents: {exc}")
+        return None
 
     for idx, (implementation, _, method, kwargs) in enumerate(selectedMethodSpecs):
         commsLen, timeTaken = testDiscreteMethod(

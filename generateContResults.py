@@ -129,14 +129,14 @@ def getOneEpData(
         "agents"+str(NUM_AGENTS)+"_fps"+str(FPS),
     )
 
-    with open(os.path.join(scenarioFolder, "{}.json".format(index)), "r") as f:
-        try:
+    scenarioFile = os.path.join(scenarioFolder, "{}.json".format(index))
+    try:
+        with open(scenarioFile, "r") as f:
             data = json.load(f)
-        except:
-            print(index)
-            return None
-
-    allPos = jsonToNpy(data, NUM_AGENTS)
+        allPos = jsonToNpy(data, NUM_AGENTS)
+    except Exception as exc:
+        print(f"Skipping failed scenario {scenarioFile}: {exc}")
+        return None
 
     for idx, (implementation, name, method, kwargs) in enumerate(selectedMethodSpecs):
         kwargs = dict(kwargs)
