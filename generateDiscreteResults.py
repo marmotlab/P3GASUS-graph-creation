@@ -55,7 +55,7 @@ def parseArgs():
     )
     parser.add_argument("--output", default="Results/discrete.csv")
     parser.add_argument("--num-cpu-core", type=int, default=16)
-    parser.add_argument("--repeat-len", type=int, default=10)
+    parser.add_argument("--repeat-len", type=int, default=16)
     parser.add_argument("--agent-start", type=int, default=10)
     parser.add_argument("--agent-stop", type=int, default=50)
     parser.add_argument("--agent-step", type=int, default=10)
