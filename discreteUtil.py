@@ -415,7 +415,7 @@ def oneTestCase(NUM_AGENTS=40, minFreeCellPercentToMaintain=30):
         tempMap[GOALS[-1]] = 3
 
     world = world.tolist()
-    paths = lacam.solve(world, STARTS, GOALS, 5.0)
+    paths = lacam.solve(world, STARTS, GOALS, 20.0)
 
     if(paths is None):
         raise Exception("No Solution")
