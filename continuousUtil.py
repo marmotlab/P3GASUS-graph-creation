@@ -284,9 +284,13 @@ def importContinuousCpp():
     return p3cpp
 
 
-def testTimeCpp(method, allPos):
+def testTimeCpp(method, allPos, filename="temp.dat"):
     start = time.time()
-    exGraph = method(allPos)
+    p3cpp = importContinuousCpp()
+    if method is p3cpp.MAGE:
+        exGraph = method(allPos, filename)
+    else:
+        exGraph = method(allPos)
     end = time.time()
     commsLen = len(exGraph.edges()) - len(allPos[0]) * (len(exGraph.robot_list()) - 1)
     return commsLen, end - start
@@ -329,7 +333,7 @@ def getContinuousMethodSpecs(implementation="both", methodNames=None):
 
 def testContinuousMethod(implementation, method, allPos, **kwargs):
     if implementation == "CPP":
-        return testTimeCpp(method, allPos)
+        return testTimeCpp(method, allPos, **kwargs)
 
     return testTime(method, allPos, **kwargs)
 

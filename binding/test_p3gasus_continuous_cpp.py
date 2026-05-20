@@ -71,6 +71,17 @@ def cpp_edges(graph):
     return {tuple(edge) for edge in graph.edges()}
 
 
+def py_in_neighbors(graph):
+    return {
+        node: sorted(source for source, _ in graph.graph.in_edges(node))
+        for node in graph.graph.nodes
+    }
+
+
+def cpp_in_neighbors(graph):
+    return {node: sorted(graph.in_neighbors(node)) for node in graph.nodes()}
+
+
 def assert_same_graph(name, py_ctor, cpp_ctor, positions):
     py_graph = py_ctor(positions)
     cpp_graph = cpp_ctor(positions)
@@ -84,6 +95,7 @@ def assert_same_graph(name, py_ctor, cpp_ctor, positions):
     assert len(cpp_graph.task_list()) == len(py_graph.taskList), f"{name}: task_list"
     assert len(cpp_graph.robot_list()) == len(py_graph.robotList), f"{name}: robot_list"
     assert np.isclose(cpp_graph.threshold(), py_graph.THRESH), f"{name}: threshold"
+    assert cpp_in_neighbors(cpp_graph) == py_in_neighbors(py_graph), f"{name}: in_neighbors"
 
 
 def test_parity_with_python_implementations():
@@ -92,6 +104,15 @@ def test_parity_with_python_implementations():
         assert_same_graph(f"{case_name}:SAGE", SAGE, cpp.SAGE, positions)
         assert_same_graph(f"{case_name}:MAGE", MAGE, cpp.MAGE, positions)
         print(f"{case_name}: parity ok")
+
+
+def test_mage_accepts_explicit_filename():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        graph = cpp.MAGE(CASES[0][1], os.path.join(tmpdir, "mage_dp.dat"))
+        assert graph.num_nodes() == 6
+        assert cpp_edges(graph) == py_edges(MAGE(CASES[0][1]))
+
+    print("continuous MAGE explicit filename ok")
 
 
 def test_binding_api_smoke():
@@ -114,4 +135,5 @@ def test_binding_api_smoke():
 
 if __name__ == "__main__":
     test_parity_with_python_implementations()
+    test_mage_accepts_explicit_filename()
     test_binding_api_smoke()

@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+#include "mage_dp_matrix.hpp"
+
 namespace p3gasus_continuous
 {
 
@@ -349,23 +351,23 @@ protected:
 class MAGE : public SAGE
 {
 public:
-    explicit MAGE(const PositionMatrix &allPositions)
+    explicit MAGE(const PositionMatrix &allPositions, const std::string &filename = "temp.dat")
         : SAGE(allPositions)
     {
         const int n = static_cast<int>(taskList.size()) + 2;
-        dp_.assign(n, std::vector<uint8_t>(n, 0));
+        dp_.reset(static_cast<std::size_t>(n), filename);
         for (const auto &task : robotList)
             reduceGraph(task.taskID);
     }
 
 private:
-    std::vector<std::vector<uint8_t>> dp_;
+    MageDpMatrix dp_;
 
-    const std::vector<uint8_t> &reduceGraph(int root)
+    void reduceGraph(int root)
     {
-        if (dp_[root][root])
-            return dp_[root];
-        dp_[root][root] = 1;
+        if (dp_.at(root, root))
+            return;
+        dp_.at(root, root) = 1;
 
         std::vector<int> children(graph.outNeighbors(root).begin(), graph.outNeighbors(root).end());
 
@@ -373,9 +375,11 @@ private:
         if (seqIt != children.end())
         {
             children.erase(seqIt);
-            const auto &childDp = reduceGraph(root + 1);
-            for (std::size_t i = 0; i < dp_[root].size(); ++i)
-                dp_[root][i] = dp_[root][i] | childDp[i];
+            reduceGraph(root + 1);
+            uint8_t *rootDp = dp_.row(root);
+            const uint8_t *childDp = dp_.row(root + 1);
+            for (std::size_t i = 0; i < dp_.size(); ++i)
+                rootDp[i] = rootDp[i] | childDp[i];
         }
 
         std::sort(children.begin(), children.end(),
@@ -388,18 +392,19 @@ private:
         {
             const int child = children.front();
             children.erase(children.begin());
-            if (dp_[root][child])
+            if (dp_.at(root, child))
             {
                 graph.removeEdge(root, child);
             }
             else
             {
-                const auto &childDp = reduceGraph(child);
-                for (std::size_t i = 0; i < dp_[root].size(); ++i)
-                    dp_[root][i] = dp_[root][i] | childDp[i];
+                reduceGraph(child);
+                uint8_t *rootDp = dp_.row(root);
+                const uint8_t *childDp = dp_.row(child);
+                for (std::size_t i = 0; i < dp_.size(); ++i)
+                    rootDp[i] = rootDp[i] | childDp[i];
             }
         }
-        return dp_[root];
     }
 };
 

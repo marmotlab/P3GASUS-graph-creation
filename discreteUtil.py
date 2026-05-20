@@ -331,7 +331,7 @@ def importDiscreteCpp():
     return p3cpp
 
 
-def testTimeCpp(method, ACTIONS, STARTS, base_type=None):
+def testTimeCpp(method, ACTIONS, STARTS, base_type=None, filename="temp.dat"):
     p3cpp = importDiscreteCpp()
     ACTIONS = np.asarray(ACTIONS, dtype=np.int64)
     STARTS = np.asarray(STARTS, dtype=np.int64)
@@ -341,7 +341,7 @@ def testTimeCpp(method, ACTIONS, STARTS, base_type=None):
 
     start = time.time()
     if method is p3cpp.MAGE:
-        exGraph = method(ACTIONS, STARTS, base_type)
+        exGraph = method(ACTIONS, STARTS, base_type, filename)
     else:
         exGraph = method(ACTIONS, STARTS)
     end = time.time()

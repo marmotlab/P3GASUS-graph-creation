@@ -5,6 +5,18 @@
 
 namespace py = pybind11;
 
+template <typename T>
+const char *graphClassName();
+
+template <>
+const char *graphClassName<OriginalADG>() { return "OriginalADG"; }
+
+template <>
+const char *graphClassName<SAGE>() { return "SAGE"; }
+
+template <>
+const char *graphClassName<FORTED>() { return "FORTED"; }
+
 // ---------------------------------------------------------------------------
 // Helper: convert Python 2-D list/array of actions + list of [x,y] starts
 //         into C++ types.  Accepts either Python lists or numpy int arrays.
@@ -109,12 +121,12 @@ struct GraphWrapper
 
     void fileWrite(const std::string &path) const
     {
-        graph.fileWrite(path, typeid(T).name());
+        graph.fileWrite(path, graphClassName<T>());
     }
 
     std::string repr() const
     {
-        return std::string(typeid(T).name()) +
+        return std::string(graphClassName<T>()) +
                " nodes=" + std::to_string(numNodes()) +
                " edges=" + std::to_string(numEdges());
     }
@@ -128,9 +140,9 @@ struct MAGEWrapper
     MAGE graph;
 
     MAGEWrapper(py::object taskActions, py::object startPositions,
-                int baseType = 0)
+                int baseType = 0, const std::string &filename = "temp.dat")
         : graph(pyActionsToVec(taskActions), pyStartsToVec(startPositions),
-                static_cast<MAGE::BaseType>(baseType)) {}
+                static_cast<MAGE::BaseType>(baseType), filename) {}
 
     std::vector<std::pair<int, int>> edges() const { return graph.graph.edges(); }
     std::size_t numEdges() const { return graph.graph.numEdges(); }
@@ -259,11 +271,13 @@ PYBIND11_MODULE(p3gasus_discrete_cpp, m)
         .value("BASE_ORIGINAL", MAGE::BASE_ORIGINAL);
 
     py::class_<MAGEWrapper>(m, "MAGE")
-        .def(py::init<py::object, py::object, int>(),
+        .def(py::init<py::object, py::object, int, const std::string &>(),
              py::arg("taskActions"), py::arg("startPositions"),
              py::arg("base_type") = 0,
+             py::arg("filename") = "temp.dat",
              "MAGE with transitive reduction.\n"
-             "base_type: 0=FORTED (default), 1=SAGE, 2=OriginalADG")
+             "base_type: 0=FORTED (default), 1=SAGE, 2=OriginalADG\n"
+             "filename: backing file used when the DP matrix exceeds 50000 rows")
         .def("edges", &MAGEWrapper::edges)
         .def("num_edges", &MAGEWrapper::numEdges)
         .def("num_nodes", &MAGEWrapper::numNodes)

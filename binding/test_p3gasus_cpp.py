@@ -57,6 +57,17 @@ def cpp_edges(graph):
     return {tuple(edge) for edge in graph.edges()}
 
 
+def py_in_neighbors(graph):
+    return {
+        node: sorted(source for source, _ in graph.graph.in_edges(node))
+        for node in graph.graph.nodes
+    }
+
+
+def cpp_in_neighbors(graph):
+    return {node: sorted(graph.in_neighbors(node)) for node in graph.nodes()}
+
+
 def assert_same_graph(name, py_ctor, cpp_ctor, actions, starts):
     py_graph = py_ctor(actions, starts)
     cpp_graph = cpp_ctor(actions, starts)
@@ -69,6 +80,7 @@ def assert_same_graph(name, py_ctor, cpp_ctor, actions, starts):
     assert cpp_graph.num_edges() == len(py_graph.graph.edges), f"{name}: edge count"
     assert len(cpp_graph.task_list()) == len(py_graph.taskList), f"{name}: task_list"
     assert len(cpp_graph.robot_list()) == len(py_graph.robotList), f"{name}: robot_list"
+    assert cpp_in_neighbors(cpp_graph) == py_in_neighbors(py_graph), f"{name}: in_neighbors"
 
 
 def test_parity_with_python_implementations():
@@ -102,6 +114,22 @@ def test_parity_with_python_implementations():
         print(f"{case_name}: parity ok")
 
 
+def test_mage_accepts_explicit_filename():
+    actions = np.array(CASES[0][1], dtype=np.int64)
+    starts = np.array(CASES[0][2], dtype=np.int64)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        graph = cpp.MAGE(
+            actions,
+            starts,
+            cpp.BaseADGType.BASE_FORTED,
+            os.path.join(tmpdir, "mage_dp.dat"),
+        )
+        assert graph.num_nodes() == 6
+        assert cpp_edges(graph) == py_edges(MAGE(actions, starts, baseADG=FORTED))
+
+    print("MAGE explicit filename ok")
+
+
 def test_binding_api_smoke():
     actions = np.array(CASES[0][1], dtype=np.int64)
     starts = np.array(CASES[0][2], dtype=np.int64)
@@ -117,13 +145,16 @@ def test_binding_api_smoke():
     with tempfile.TemporaryDirectory() as tmpdir:
         graph.file_write(tmpdir)
         names = sorted(os.listdir(tmpdir))
-        assert len(names) == 2
-        assert names[0].endswith("_Graph.txt")
-        assert names[1].endswith("_TaskList.txt")
+        assert names == ["FORTED_Graph.txt", "FORTED_TaskList.txt"], names
+
+        cpp.OriginalADG(actions, starts).file_write(tmpdir)
+        names = sorted(name for name in os.listdir(tmpdir) if name.startswith("OriginalADG"))
+        assert names == ["OriginalADG_Graph.txt", "OriginalADG_TaskList.txt"], names
 
     print("binding API smoke ok")
 
 
 if __name__ == "__main__":
     test_parity_with_python_implementations()
+    test_mage_accepts_explicit_filename()
     test_binding_api_smoke()

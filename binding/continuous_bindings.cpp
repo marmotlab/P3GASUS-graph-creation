@@ -1,6 +1,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <type_traits>
 
 #include "p3gasus_continuous.hpp"
 
@@ -32,6 +33,9 @@ struct ContinuousGraphWrapper
 
     explicit ContinuousGraphWrapper(py::object positions)
         : graph(pyPositionsToVec(positions)) {}
+
+    ContinuousGraphWrapper(py::object positions, const std::string &filename)
+        : graph(makeGraph(positions, filename)) {}
 
     std::vector<std::pair<int, int>> edges() const { return graph.graph.edges(); }
     std::size_t numEdges() const { return graph.graph.numEdges(); }
@@ -96,6 +100,15 @@ struct ContinuousGraphWrapper
                " edges=" + std::to_string(numEdges()) +
                " threshold=" + std::to_string(threshold());
     }
+
+private:
+    static T makeGraph(py::object positions, const std::string &filename)
+    {
+        if constexpr (std::is_same_v<T, pc::MAGE>)
+            return T(pyPositionsToVec(positions), filename);
+        else
+            return T(pyPositionsToVec(positions));
+    }
 };
 
 PYBIND11_MODULE(p3gasus_continuous_cpp, m)
@@ -139,7 +152,8 @@ PYBIND11_MODULE(p3gasus_continuous_cpp, m)
              { return self.repr("SAGE"); });
 
     py::class_<ContinuousGraphWrapper<pc::MAGE>>(m, "MAGE")
-        .def(py::init<py::object>(), py::arg("positions"))
+        .def(py::init<py::object, const std::string &>(),
+             py::arg("positions"), py::arg("filename") = "temp.dat")
         .def("edges", &ContinuousGraphWrapper<pc::MAGE>::edges)
         .def("num_edges", &ContinuousGraphWrapper<pc::MAGE>::numEdges)
         .def("num_nodes", &ContinuousGraphWrapper<pc::MAGE>::numNodes)

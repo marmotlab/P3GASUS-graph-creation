@@ -12,6 +12,7 @@
 #include <sstream>
 #include <memory>
 #include <functional>
+#include "mage_dp_matrix.hpp"
 
 // ---------------------------------------------------------------------------
 // Pos2D  – lightweight 2-D integer coordinate
@@ -114,7 +115,11 @@ public:
         auto it = adj_.find(u);
         if (it == adj_.end())
             return false;
-        return it->second.erase(v) > 0;
+        const bool removed = it->second.erase(v) > 0;
+        auto rit = radj_.find(v);
+        if (rit != radj_.end())
+            rit->second.erase(u);
+        return removed;
     }
     bool hasEdge(int u, int v) const
     {
@@ -453,7 +458,8 @@ public:
 
     MAGE(const std::vector<std::vector<int>> &taskActions,
          const std::vector<Pos2D> &startPositions,
-         BaseType baseType = BASE_FORTED)
+         BaseType baseType = BASE_FORTED,
+         const std::string &filename = "temp.dat")
     {
         // Build base ADG
         std::unique_ptr<ExecutionGraph> base;
@@ -475,21 +481,21 @@ public:
 
         int N = (int)taskList.size() + 2;
         // dp[u][v] = reachable(u,v) already computed
-        dp_.assign(N, std::vector<uint8_t>(N, 0));
+        dp_.reset(static_cast<std::size_t>(N), filename);
 
         for (auto &rt : robotList)
             reduceGraph(rt.taskID);
     }
 
 private:
-    std::vector<std::vector<uint8_t>> dp_;
+    MageDpMatrix dp_;
 
-    // Returns reference to dp_[root] after filling reachability
-    const std::vector<uint8_t> &reduceGraph(int root)
+    // Fills dp_[root] with all nodes reachable from root.
+    void reduceGraph(int root)
     {
-        if (dp_[root][root])
-            return dp_[root];
-        dp_[root][root] = 1;
+        if (dp_.at(root, root))
+            return;
+        dp_.at(root, root) = 1;
 
         // Collect children sorted by time, but process root+1 first
         std::vector<int> children;
@@ -501,9 +507,11 @@ private:
         if (it1 != children.end())
         {
             children.erase(it1);
-            const auto &child_dp = reduceGraph(root + 1);
-            for (int i = 0; i < (int)dp_[root].size(); ++i)
-                dp_[root][i] = dp_[root][i] | child_dp[i];
+            reduceGraph(root + 1);
+            uint8_t *root_dp = dp_.row(root);
+            const uint8_t *child_dp = dp_.row(root + 1);
+            for (std::size_t i = 0; i < dp_.size(); ++i)
+                root_dp[i] = root_dp[i] | child_dp[i];
         }
 
         // Sort remaining children by time
@@ -517,17 +525,18 @@ private:
         {
             int child = children.front();
             children.erase(children.begin());
-            if (dp_[root][child])
+            if (dp_.at(root, child))
             {
                 graph.removeEdge(root, child);
             }
             else
             {
-                const auto &child_dp = reduceGraph(child);
-                for (int i = 0; i < (int)dp_[root].size(); ++i)
-                    dp_[root][i] = dp_[root][i] | child_dp[i];
+                reduceGraph(child);
+                uint8_t *root_dp = dp_.row(root);
+                const uint8_t *child_dp = dp_.row(child);
+                for (std::size_t i = 0; i < dp_.size(); ++i)
+                    root_dp[i] = root_dp[i] | child_dp[i];
             }
         }
-        return dp_[root];
     }
 };
