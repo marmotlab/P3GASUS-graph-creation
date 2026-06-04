@@ -5,6 +5,7 @@ import networkx as nx
 import networkx.algorithms.isomorphism as iso
 
 from sklearn.neighbors import KDTree
+from rtree import index as rtree_index
 import json
 import csv
 
@@ -274,13 +275,76 @@ class Multi_KDTree_SAGE(ContinuousExecutionGraph):
                             self.graph.add_edge(tID, tID_)
                             break
 
+class RTree_SAGE(ContinuousExecutionGraph):
+    def __init__(self, allPositions=None, radii=None) -> None:
+        super().__init__(allPositions, radii=radii)
+
+        numRobots = allPositions.shape[0]
+        tId = 1
+
+        p = rtree_index.Property()
+        p.dimension = 2
+        spatial_index = rtree_index.Index(properties=p)
+
+        for rid in range(numRobots):
+            prevTask = None
+            for i, task in enumerate(allPositions[rid, :-1]):
+                t = ContinuousTask(tId, rid, task, allPositions[rid, i+1], i)
+                self.taskList[tId] = t
+                tId += 1
+                self.graph.add_node(t.taskID)
+
+                if prevTask is None:
+                    self.robotList.append(t)
+                else:
+                    self.graph.add_edge(prevTask.taskID, t.taskID)
+
+                prevTask = t
+
+                # Insert goalPos as bounding box expanded by robot's own radius
+                r = float(self.radii[rid]) if self.radii is not None else 0.0
+                gx, gy = float(t.goalPos[0]), float(t.goalPos[1])
+                spatial_index.insert(t.taskID, (gx - r, gy - r, gx + r, gy + r))
+
+        taskQueue = [i.taskID for i in self.robotList]
+
+        while taskQueue:
+            tID = taskQueue.pop(0)
+            t = self.taskList[tID]
+
+            if t.startPos[0] == -2 and t.startPos[1] == -2:
+                continue
+
+            if (tID + 1) in self.taskList and self.taskList[tID + 1].time != 0:
+                taskQueue.append(tID + 1)
+
+            r_i = float(self.radii[t.robotID]) if self.radii is not None else 0.0
+            sx, sy = float(t.startPos[0]), float(t.startPos[1])
+
+            # Query: startPos box expanded by r_i intersects goalPos box expanded by r_j
+            # => axis-aligned conservative check for distance(start, goal) <= r_i + r_j
+            candidates = sorted(spatial_index.intersection((sx - r_i, sy - r_i, sx + r_i, sy + r_i)))
+
+            dependentRobots = [t.robotID]
+
+            for tID_ in candidates:
+                t_ = self.taskList[tID_]
+                if t_.robotID in dependentRobots or t.time > t_.time:
+                    continue
+
+                threshold = float(self.radii[t.robotID] + self.radii[t_.robotID]) if self.radii is not None else self.THRESH
+                if self.getDistance(t.startPos, t_.goalPos) <= threshold:
+                    self.graph.add_edge(tID, tID_)
+                    dependentRobots.append(t_.robotID)
+
+
 #Helper Functions
 
 def testTime(method, allPos, allConf=None, fname="temp.dat"):
     start = time.time()
     if(method is MAGE):
         exGraph = method(allPos, fname)
-    elif(method is SAGE or method is Multi_KDTree_SAGE):
+    elif method in (SAGE, Multi_KDTree_SAGE, RTree_SAGE):
         exGraph = method(allPos, radii=allConf)
     else:
         exGraph = method(allPos)
