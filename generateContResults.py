@@ -9,17 +9,23 @@ os.environ["RAY_DEDUP_LOGS"] = "0"
 import ray
 
 
-DEFAULT_PAIRS = [
-    (10, 10),
-    (10, 20),
-    (10, 25),
-    (10, 50),
-    (10, 100),
-    (20, 10),
-    (20, 20),
-    (20, 25),
-    (20, 50),
-]
+def loadRadii(NUM_AGENTS, FPS):
+    radii_path = f"Continuous Scenario Paths/{NUM_AGENTS}Agents_{FPS}fps_conf.json"
+    
+    if os.path.exists(radii_path):
+        with open(radii_path, 'r') as f:
+            try:
+                data = json.load(f)
+            except:
+                print(f"Error loading radii JSON: {radii_path}")
+                return None
+        return jsonToRadii(data, NUM_AGENTS)
+    
+    print(f"Warning: no radii config found for {NUM_AGENTS} agents at {FPS} fps")
+    return None
+
+# Get a list of all .dat files in the folder
+dat_files = glob.glob(os.path.join(folder_path, '*.dat'))
 
 
 def parseMethodNames(value):
@@ -133,23 +139,15 @@ def getOneEpData(
     try:
         with open(scenarioFile, "r") as f:
             data = json.load(f)
-        allPos = jsonToNpy(data, NUM_AGENTS)
-    except Exception as exc:
-        print(f"Skipping failed scenario {scenarioFile}: {exc}")
-        return None
+        except:
+            print(index)
+            return None
+    allPos=jsonToNpy(data,NUM_AGENTS)
+    allRadii = loadRadii(NUM_AGENTS, FPS)
 
-    for idx, (implementation, name, method, kwargs) in enumerate(selectedMethodSpecs):
-        kwargs = dict(kwargs)
-        if implementation == "Python":
-            kwargs["fname"] = filepath+"_"+name+"_"+str(index)+".dat"
-
-        commsLen, timeTaken = testContinuousMethod(
-            implementation,
-            method,
-            allPos,
-            **kwargs,
-        )
-        timeStore[idx] = timeTaken
+    for idx, val in enumerate(listOfMethods):
+        commsLen, timeTaken = testTime(val, allPos, allRadii, filepath+"_"+str(index)+".dat")
+        timeStore[idx] = timeTaken    
         commsStore[idx] = commsLen
 
     with open(filepath+".csv", "+a") as f:

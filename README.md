@@ -265,15 +265,23 @@ with open("Continuous Scenario Paths/10Agents_10fps", 'r') as f:
 
 allPos = jsonToNpy(data, NUM_AGENTS=10)
 
+with open("Continuous Scenario Paths/10Agent_10fps_conf.json", 'r') as f:
+    try:
+        data = json.load(f)
+    except:
+        print("Error loading JSON")
+
+allRadii = jsonToRadii(data, NUM_AGENTS=10)
+
 for val in listOfMethods:
-    commsLen, timeTaken = testTime(val, allPos)
+    commsLen, timeTaken = testTime(val, allPos, allRadii)
     print(f"{val.__name__}: Time Taken - {timeTaken}, Comms Length - {commsLen}")
 ```
 
 To write a graph to disk:
 
 ``` python
-exGraph = SAGE(allPos)
+exGraph = SAGE(allPos, allRadii)
 exGraph.fileWrite("Debug/")
 ```
 

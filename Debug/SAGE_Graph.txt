@@ -1,3 +1,6 @@
+#/home/uday/miniconda3/lib/python3.13/site-packages/ipykernel_launcher.py --f=/run/user/1000/jupyter/runtime/kernel-v31c5ad0c16782fd52cf0b33d778ddc3803a643156.json
+# GMT Thu Jun  4 11:47:53 2026
+# 
 1 2
 2 3
 3 4
