@@ -6,16 +6,73 @@ The core implementations are located in:
 
 - `discreteUtil.py` — for discrete-space scenarios  
 - `continuousUtil.py` — for continuous-space scenarios  
+- `binding/` — C++/pybind11 backends for faster graph construction
 
 Example usage is demonstrated in the accompanying Jupyter notebooks:
 
 - `discrete.ipynb`  
 - `continuous.ipynb`
 
-The `results/` folder contains detailed test outputs generated using:
+The `Results/` folder contains detailed test outputs generated using:
 
 - `generateDiscreteResults.py`  
 - `generateContResults.py`
+
+---
+
+## C++ Python Bindings
+
+The repository includes pybind11 bindings for both graph-construction domains:
+
+- `p3gasus_discrete_cpp` — discrete `OriginalADG`, `SAGE`, `FORTED`, and `MAGE`
+- `p3gasus_continuous_cpp` — continuous `OriginalADG`, `SAGE`, and `MAGE`
+
+Build the bindings from the `binding/` directory:
+
+```bash
+cd binding
+python setup.py build_ext --inplace
+```
+
+The notebooks use the Python 3.11 `py11` environment. To build for that environment:
+
+```bash
+cd binding
+conda run -n py11 python setup.py build_ext --inplace
+```
+
+The bindings can then be imported from the repository root:
+
+```python
+import sys
+sys.path.insert(0, "binding")
+
+import p3gasus_discrete_cpp as dcpp
+import p3gasus_continuous_cpp as ccpp
+```
+
+Both binding modules expose a lightweight graph API:
+
+- `edges()`
+- `num_edges()`
+- `num_nodes()`
+- `nodes()`
+- `out_neighbors(node)`
+- `in_neighbors(node)`
+- `has_edge(u, v)`
+- `task_list()`
+- `robot_list()`
+- `count_type2_edges()`
+- `file_write(path)`
+
+The continuous binding also exposes `threshold()`.
+
+Smoke/parity tests are available:
+
+```bash
+python binding/test_p3gasus_cpp.py
+python binding/test_p3gasus_continuous_cpp.py
+```
 
 ---
 
@@ -38,6 +95,38 @@ Each `ExecutionGraph` instance contains:
 See the paper for full algorithmic details.
 
 ---
+
+### Discrete C++ Binding
+
+The discrete C++ binding mirrors the Python graph constructors:
+
+```python
+import numpy as np
+import sys
+
+from discreteUtil import oneTestCase, testTime, OriginalADG, SAGE, FORTED, MAGE
+
+sys.path.insert(0, "binding")
+import p3gasus_discrete_cpp as p3cpp
+
+actions, starts, free = oneTestCase(100, 50)
+
+# oneTestCase returns actions as a float NumPy array, so cast before C++ calls.
+actions_cpp = np.asarray(actions, dtype=np.int64)
+starts_cpp = np.asarray(starts, dtype=np.int64)
+
+graph = p3cpp.FORTED(actions_cpp, starts_cpp)
+print(graph.num_edges())
+graph.file_write("Debug/")
+```
+
+`MAGE` accepts a base graph type:
+
+```python
+mage_forted = p3cpp.MAGE(actions_cpp, starts_cpp, p3cpp.BaseADGType.BASE_FORTED)
+mage_sage = p3cpp.MAGE(actions_cpp, starts_cpp, p3cpp.BaseADGType.BASE_SAGE)
+mage_original = p3cpp.MAGE(actions_cpp, starts_cpp, p3cpp.BaseADGType.BASE_ORIGINAL)
+```
 
 ### Helper Functions
 
@@ -98,10 +187,13 @@ The constructed execution graph is available as:
 exGraph.graph
 ```
 
-## Continuous Case
-All methods implemented here — `OriginalADG`, `SAGE`, and `MAGE` — inherit from the common `ExecutionGraph` class.
+The `discrete.ipynb` notebook contains a single comparison table cell that reports method name, edge count, and runtime for both Python and C++ implementations.
 
-Each `ExecutionGraph` instance contains:
+## Continuous Case
+
+All methods implemented here — `OriginalADG`, `SAGE`, and `MAGE` — inherit from the common `ContinuousExecutionGraph` class.
+
+Each `ContinuousExecutionGraph` instance contains:
 
 - `taskList`
 - `graph` (a NetworkX directed graph)
@@ -111,12 +203,41 @@ The folder **`Continuous Scenario Paths/`** contains sample path data in JSON fo
 
 ---
 
-## Helper Functions
+### Continuous C++ Binding
 
-### `jsonToNpy(data, NUM_AGENTS)`
+The continuous C++ binding accepts the same position tensor produced by `jsonToNpy`:
+
+```python
+import sys
+
+from continuousUtil import jsonToNpy
+
+sys.path.insert(0, "binding")
+import p3gasus_continuous_cpp as p3cpp
+
+allPos = jsonToNpy(data, NUM_AGENTS=10)
+
+graph = p3cpp.SAGE(allPos)
+print(graph.num_edges(), graph.threshold())
+graph.file_write("Debug/")
+```
+
+The continuous binding includes:
+
+```python
+p3cpp.OriginalADG(allPos)
+p3cpp.SAGE(allPos)
+p3cpp.MAGE(allPos)
+```
+
+The `continuous.ipynb` notebook contains a single comparison table cell that reports method name, edge count, and runtime for both Python and C++ implementations.
+
+### Helper Functions
+
+#### `jsonToNpy(data, NUM_AGENTS)`
 Converts path data loaded from JSON format into a NumPy matrix suitable for further processing.
 
-### `testTime(val, allPos)`
+#### `testTime(val, allPos)`
 Runs the specified continuous-space graph construction method.
 
 - `val` — the method class (`OriginalADG`, `SAGE`, or `MAGE`)  
@@ -129,7 +250,7 @@ Returns:
 
 ---
 
-## Example Usage
+### Example Usage
 
 ```python
 from continuousUtil import *

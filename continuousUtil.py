@@ -1,4 +1,8 @@
 import numpy as np
+import os
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+
 import matplotlib.pyplot as plt
 import copy
 import networkx as nx
@@ -10,7 +14,7 @@ import json
 import csv
 
 import time
-import os 
+from pathlib import Path
 
 import sys
 sys.setrecursionlimit(600000)
@@ -470,6 +474,70 @@ def testTime(method, allPos, allConf=None, fname="temp.dat"):
     end = time.time()
     
     return len(exGraph.graph.edges)-len(allPos[0])*(len(exGraph.robotList)-1), end-start
+
+
+def importContinuousCpp():
+    bindingPath = Path(__file__).resolve().parent / "binding"
+    if str(bindingPath) not in sys.path:
+        sys.path.insert(0, str(bindingPath))
+
+    import p3gasus_continuous_cpp as p3cpp
+
+    return p3cpp
+
+
+def testTimeCpp(method, allPos, filename="temp.dat"):
+    start = time.time()
+    p3cpp = importContinuousCpp()
+    if method is p3cpp.MAGE:
+        exGraph = method(allPos, filename)
+    else:
+        exGraph = method(allPos)
+    end = time.time()
+    commsLen = len(exGraph.edges()) - len(allPos[0]) * (len(exGraph.robot_list()) - 1)
+    return commsLen, end - start
+
+
+def getContinuousMethodSpecs(implementation="both", methodNames=None):
+    implementation = implementation.lower()
+    if implementation not in {"python", "cpp", "both"}:
+        raise ValueError("implementation must be one of: python, cpp, both")
+
+    requested = None
+    if methodNames is not None:
+        requested = {name.strip() for name in methodNames if name.strip()}
+
+    specs = []
+
+    if implementation in {"python", "both"}:
+        specs.extend([
+            ("Python", "OriginalADG", OriginalADG, {}),
+            ("Python", "SAGE", SAGE, {}),
+            ("Python", "MAGE", MAGE, {}),
+        ])
+
+    if implementation in {"cpp", "both"}:
+        p3cpp = importContinuousCpp()
+        specs.extend([
+            ("CPP", "OriginalADG", p3cpp.OriginalADG, {}),
+            ("CPP", "SAGE", p3cpp.SAGE, {}),
+            ("CPP", "MAGE", p3cpp.MAGE, {}),
+        ])
+
+    if requested is not None:
+        specs = [spec for spec in specs if spec[1] in requested]
+
+    if len(specs) == 0:
+        raise ValueError("No matching continuous methods selected")
+
+    return specs
+
+
+def testContinuousMethod(implementation, method, allPos, **kwargs):
+    if implementation == "CPP":
+        return testTimeCpp(method, allPos, **kwargs)
+
+    return testTime(method, allPos, **kwargs)
 
 def jsonToNpy(data, NUM_AGENTS):
     temp = []

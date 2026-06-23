@@ -1,4 +1,8 @@
 import numpy as np
+import os
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+
 import matplotlib.pyplot as plt
 import copy
 import networkx as nx
@@ -8,7 +12,8 @@ import lacam
 from mapUtil import *
 
 import time
-import os
+import sys
+from pathlib import Path
 
 class Position:
     def __init__(self) -> None:
@@ -316,6 +321,81 @@ def testTime(method, ACTIONS, STARTS, subMethod = FORTED, filename="temp.dat"):
     return len(exGraph.graph.edges)-len(ACTIONS[0])*(len(exGraph.robotList)-1), end-start
 
 
+def importDiscreteCpp():
+    bindingPath = Path(__file__).resolve().parent / "binding"
+    if str(bindingPath) not in sys.path:
+        sys.path.insert(0, str(bindingPath))
+
+    import p3gasus_discrete_cpp as p3cpp
+
+    return p3cpp
+
+
+def testTimeCpp(method, ACTIONS, STARTS, base_type=None, filename="temp.dat"):
+    p3cpp = importDiscreteCpp()
+    ACTIONS = np.asarray(ACTIONS, dtype=np.int64)
+    STARTS = np.asarray(STARTS, dtype=np.int64)
+
+    if base_type is None:
+        base_type = p3cpp.BaseADGType.BASE_FORTED
+
+    start = time.time()
+    if method is p3cpp.MAGE:
+        exGraph = method(ACTIONS, STARTS, base_type, filename)
+    else:
+        exGraph = method(ACTIONS, STARTS)
+    end = time.time()
+
+    commsLen = len(exGraph.edges()) - len(ACTIONS[0]) * (len(exGraph.robot_list()) - 1)
+    return commsLen, end - start
+
+
+def getDiscreteMethodSpecs(implementation="both", methodNames=None):
+    implementation = implementation.lower()
+    if implementation not in {"python", "cpp", "both"}:
+        raise ValueError("implementation must be one of: python, cpp, both")
+
+    requested = None
+    if methodNames is not None:
+        requested = {name.strip() for name in methodNames if name.strip()}
+
+    specs = []
+
+    if implementation in {"python", "both"}:
+        specs.extend([
+            ("Python", "OriginalADG", OriginalADG, {}),
+            ("Python", "SAGE", SAGE, {}),
+            ("Python", "FORTED", FORTED, {}),
+            ("Python", "MAGE_FORTED", MAGE, {"subMethod": FORTED}),
+            ("Python", "MAGE_SAGE", MAGE, {"subMethod": SAGE}),
+        ])
+
+    if implementation in {"cpp", "both"}:
+        p3cpp = importDiscreteCpp()
+        specs.extend([
+            ("CPP", "OriginalADG", p3cpp.OriginalADG, {}),
+            ("CPP", "SAGE", p3cpp.SAGE, {}),
+            ("CPP", "FORTED", p3cpp.FORTED, {}),
+            ("CPP", "MAGE_FORTED", p3cpp.MAGE, {"base_type": p3cpp.BaseADGType.BASE_FORTED}),
+            ("CPP", "MAGE_SAGE", p3cpp.MAGE, {"base_type": p3cpp.BaseADGType.BASE_SAGE}),
+        ])
+
+    if requested is not None:
+        specs = [spec for spec in specs if spec[1] in requested]
+
+    if len(specs) == 0:
+        raise ValueError("No matching discrete methods selected")
+
+    return specs
+
+
+def testDiscreteMethod(implementation, method, ACTIONS, STARTS, **kwargs):
+    if implementation == "CPP":
+        return testTimeCpp(method, ACTIONS, STARTS, **kwargs)
+
+    return testTime(method, ACTIONS, STARTS, **kwargs)
+
+
 def oneTestCase(NUM_AGENTS=40, minFreeCellPercentToMaintain=30):
     STARTS = []
     GOALS = []
@@ -335,11 +415,13 @@ def oneTestCase(NUM_AGENTS=40, minFreeCellPercentToMaintain=30):
         tempMap[GOALS[-1]] = 3
 
     world = world.tolist()
-    paths = lacam.solve(world, STARTS, GOALS, 5.0)
+    paths = lacam.solve(world, STARTS, GOALS, 20.0)
 
     if(paths is None):
         raise Exception("No Solution")
 
+    if len(paths) < NUM_AGENTS:
+        raise Exception(f"Incomplete Solution: expected {NUM_AGENTS} paths, got {len(paths)}")
 
     ACTIONS = []
 
